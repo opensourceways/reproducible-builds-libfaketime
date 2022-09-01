@@ -401,6 +401,36 @@ static void ftpl_init (void) __attribute__ ((constructor));
 
 static bool shmCreator = false;
 
+static bool get_white_list()
+{
+  char *WHITE_LIST;
+  if(!getenv("WHITELIST"))
+  {
+    return false;
+  }
+  else
+  {
+    WHITE_LIST = getenv("WHITELIST");
+  }
+  int pid = getpid();
+  char proc_pid_path[1024];
+  char buf[1024];
+  char task_name[50];
+  sprintf(proc_pid_path, "/proc/%d/status",pid);
+  FILE *fp =fopen(proc_pid_path,"r");
+  if(NULL != fp)
+  {
+    if(fgets(buf, 1023, fp) == NULL)
+    {
+      fclose(fp);
+    }
+    fclose(fp);
+    sscanf(buf, "%*s %s", task_name);
+  }
+  if(strstr(WHITE_LIST, task_name) == NULL)  return false;
+  else  return true;
+}
+
 static void ft_shm_create(void) {
   char sem_name[256], shm_name[256], sem_nameT[256], shm_nameT[256];
   int shm_fdN;
@@ -1008,7 +1038,7 @@ static inline void fake_stat64buf (struct stat64 *buf) {
   { \
     if (!fake_stat_disabled) \
     { \
-      if (!dont_fake) fake_statbuf(buf); \
+      if (!dont_fake && !get_white_list()) fake_statbuf(buf); \
     } \
   } \
   \
@@ -2273,7 +2303,10 @@ time_t time(time_t *time_tptr)
   if (result == -1) return -1;
 
   /* pass the real current time to our faking version, overwriting it */
-  (void)fake_clock_gettime(CLOCK_REALTIME, &tp);
+  if(!get_white_list())
+  {
+    (void)fake_clock_gettime(CLOCK_REALTIME, &tp);
+  }
 
   if (time_tptr != NULL)
   {
@@ -2317,7 +2350,10 @@ int ftime(struct timeb *tb)
   if (result == -1) return -1;
 
   /* pass the real current time to our faking version, overwriting it */
-  (void)fake_clock_gettime(CLOCK_REALTIME, &tp);
+  if(!get_white_list())
+  {
+    (void)fake_clock_gettime(CLOCK_REALTIME, &tp);
+  }
 
   tb->time = tp.tv_sec;
   tb->millitm = tp.tv_nsec / 1000000;
@@ -2356,7 +2392,10 @@ int gettimeofday(struct timeval *tv, void *tz)
   if (result == -1) return result; /* original function failed */
 
   /* pass the real current time to our faking version, overwriting it */
-  result = fake_gettimeofday(tv);
+  if(!get_white_list())
+  {
+    result = fake_gettimeofday(tv);
+  }
 
   /* return the result to the caller */
   return result;
@@ -2433,7 +2472,10 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp)
 #endif
       ))
   {
-    result = fake_clock_gettime(clk_id, tp);
+    if(!get_white_list())
+    {
+      result = fake_clock_gettime(clk_id, tp);
+    }
   }
 
   /* return the result to the caller */
@@ -2470,7 +2512,10 @@ int timespec_get(struct timespec *ts, int base)
   if (result == 0) return result; /* original function failed */
 
   /* pass the real current time to our faking version, overwriting it */
-  (void)fake_clock_gettime(CLOCK_REALTIME, ts);
+  if(!get_white_list())
+  {
+    (void)fake_clock_gettime(CLOCK_REALTIME, ts);
+  }
 
   /* return the result to the caller */
   return result;
