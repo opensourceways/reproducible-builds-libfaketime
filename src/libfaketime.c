@@ -209,6 +209,9 @@ static int          (*real_pthread_cond_init_232) (pthread_cond_t *restrict, con
 static int          (*real_pthread_cond_destroy_232) (pthread_cond_t *);
 static pthread_rwlock_t monotonic_conds_lock;
 #endif
+#ifdef FAKE_HOSTNAME
+static int          (*real_gethostname)     (char *name, size_t len);
+#endif
 
 #ifndef __APPLEOSX__
 #ifdef FAKE_TIMERS
@@ -429,6 +432,28 @@ static bool get_white_list()
   }
   if(strstr(WHITE_LIST, task_name) == NULL)  return false;
   else  return true;
+}
+
+int gethostname(char *name, size_t len){
+  int result;
+  if(!initialized)
+  {
+    ftpl_init();
+  }
+  DONT_FAKE_TIME(result = (*real_gethostname)(name, len));
+  if(result == -1)  return -1;
+  char *FAKE_NAME = getenv("FAKEHOSTNAME");
+  if(FAKE_NAME!=NULL){
+    if(strlen(FAKE_NAME)>len){
+      perror("libfaketime: current hostname space is limited,stop building");
+      exit(EXIT_FAILURE);
+    }
+    strcpy(name,FAKE_NAME);
+    return 0;
+  }else{
+    result = (*real_gethostname)(name, len);
+  }
+  return result;
 }
 
 static void ft_shm_create(void) {
@@ -2727,6 +2752,9 @@ static void ftpl_init(void)
   real_time =               dlsym(RTLD_NEXT, "time");
   real_ftime =              dlsym(RTLD_NEXT, "ftime");
   real_timespec_get =       dlsym(RTLD_NEXT, "timespec_get");
+#ifdef FAKE_HOSTNAME
+  real_gethostname =        dlsym(RTLD_NEXT, "gethostname");
+#endif
 #ifdef FAKE_FILE_TIMESTAMPS
   real_utimes  =            dlsym(RTLD_NEXT, "utimes");
   real_utime   =            dlsym(RTLD_NEXT, "utime");
